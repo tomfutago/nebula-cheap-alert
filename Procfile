@@ -1,0 +1,1 @@
+worker: python nebula_cheap_alert/main.py
