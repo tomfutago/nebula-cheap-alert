@@ -86,13 +86,15 @@ while True:
                     
                     if "Token is not on auction" not in auction_info:
                         price = int(auction_info["current_bid"], 16) / 10 ** 18
+                        if price == 0:
+                            price = int(auction_info["starting_price"], 16) / 10 ** 18
                         end_time_timestamp = str(int(auction_info["end_time"], 16) / 1000000) + "hrs"
                         #end_time = datetime.datetime.fromtimestamp(end_time_timestamp).strftime('%Y-%m-%d %H:%M:%S')
 
                 # build description line for each planet/special pair
                 description = "[**" + name.upper() + "**](" + external_link + ")"
                 description += "  " + rarity.upper() + "/" + generation.upper()
-                description += "  __**" + str(price) + "**__"
+                description += "  __" + str(price) + "__"
 
                 tokenList.append([planet_special, description, buy_type, price, end_time_timestamp])
 
