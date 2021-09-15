@@ -99,7 +99,7 @@ while True:
                 tokenList.append([planet_special, description, buy_type, price, end_time_timestamp])
 
         # convert list to dataframe
-        df = pd.DataFrame(tokenList)
+        df = pd.DataFrame(tokenList).drop_duplicates()
         df.columns = ["special", "description", "buy_type", "price", "end_time"]
 
         # for debugging to run pull-push separately
