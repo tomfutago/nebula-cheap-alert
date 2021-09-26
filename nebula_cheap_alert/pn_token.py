@@ -1,12 +1,4 @@
-import os
 import json
-from dotenv import load_dotenv
-
-# load env variables
-is_heroku = os.getenv("IS_HEROKU", None)
-if not is_heroku:
-    load_dotenv()
-
 
 class PNToken:
     def __init__(self, tokenInfo: json) -> None:
@@ -93,3 +85,20 @@ class Spaceship(PNToken):
         self.colonization = str(tokenInfo["colonization"])
         self.movement = str(tokenInfo["movement"])
         self.fuel = str(tokenInfo["fuel"])
+
+    def get_description(self, price) -> str:
+        description = "[**" + self.name.upper() + "**](" + self.external_link + ")"
+        description += "  " + self.generation.upper()
+        description += "  __" + str(price) + "__"
+        return description
+    
+    def get_ship_type(self) -> str:
+        ship_type = ""
+        if self.type == "scouting vessel":
+            ship_type = "range1"
+        elif self.type == "exploration vessel":
+            ship_type = "range2"
+        elif self.type == "colony ship":
+            ship_type = "range3"
+        ship_type += self.type.lower() + " " + self.tier.upper()
+        return ship_type

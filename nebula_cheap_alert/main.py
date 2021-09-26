@@ -24,9 +24,11 @@ discord_webhook_income = os.getenv("DISCORD_WEBHOOK_INCOME")
 discord_webhook_slots = os.getenv("DISCORD_WEBHOOK_SLOTS")
 discord_webhook_collectibles = os.getenv("DISCORD_WEBHOOK_COLLECTIBLES")
 discord_webhook_specials = os.getenv("DISCORD_WEBHOOK_SPECIALS")
+discord_webhook_ship_type = os.getenv("DISCORD_WEBHOOK_SHIP_TYPE")
 
-# Project Nebula contract
+# Project Nebula contracts
 NebulaPlanetTokenCx = "cx57d7acf8b5114b787ecdd99ca460c2272e4d9135"
+NebulaSpaceshipTokenCx = "cx943cf4a4e4e281d82b15ae0564bbdcbf8114b3ec"
 
 # connect to ICON main-net
 icon_service = IconService(HTTPProvider("https://ctz.solidwallet.io", 3))
@@ -119,55 +121,92 @@ def token_drill_info_loop(df: DataFrame, key_column: str, discord_webhook: str) 
 
 # main loop
 while True:
+    tokenListShipType = []
     tokenListIncome = []
     tokenListSlots = []
     tokenListCollectibles = []
     tokenListSpecials = []
 
     try:
+        ###########################################################################
+        # how many ships currently listed on the marketplace
+        total_listed_token_count = int(call(NebulaSpaceshipTokenCx, "total_listed_token_count", {}), 16)
+        
+        # loop through each token on the marketplace
+        for indexId in range(1, total_listed_token_count + 1):
+            try:
+                tokenDict = get_marketplace_info(NebulaSpaceshipTokenCx, indexId)
+
+                # pull token details
+                tokenInfo = requests.get(call(NebulaSpaceshipTokenCx, "tokenURI", {"_tokenId": tokenDict["tokenId"]})).json()
+                
+                # initialise token info
+                token = pn_token.Spaceship(tokenInfo)
+                
+                # build description line for each token
+                ship_type = token.get_ship_type()
+                description = token.get_description(tokenDict["price"])
+                
+                # ship type
+                tokenListShipType.append([ship_type, description, tokenDict["buy_type"], tokenDict["price"], tokenDict["end_time_timestamp"]])
+            except:
+                print("Error: {}. {}, line: {}".format(sys.exc_info()[0], sys.exc_info()[1], sys.exc_info()[2].tb_lineno))
+                continue
+
+        df_ship_type = pd.DataFrame(tokenListShipType).drop_duplicates()
+        df_ship_type.columns = ["type", "description", "buy_type", "price", "end_time"]
+
+        # loop through each given key column currently available on the marketplace
+        token_drill_info_loop(df=df_ship_type, key_column="type", discord_webhook=discord_webhook_ship_type)
+        
+        ###########################################################################
         # how many planets currently listed on the marketplace
         total_listed_token_count = int(call(NebulaPlanetTokenCx, "total_listed_token_count", {}), 16)
 
         # loop through each token on the marketplace
         for indexId in range(1, total_listed_token_count + 1):
-            tokenDict = get_marketplace_info(NebulaPlanetTokenCx, indexId)
+            try:
+                tokenDict = get_marketplace_info(NebulaPlanetTokenCx, indexId)
 
-            # pull token details
-            tokenInfo = requests.get(call(NebulaPlanetTokenCx, "tokenURI", {"_tokenId": tokenDict["tokenId"]})).json()
-            
-            # initialise token info
-            token = pn_token.Planet(tokenInfo)
-            
-            # build description line for each token
-            description = token.get_description(tokenDict["price"])
-            
-            # credit range
-            income = token.get_income_range("Credits")
-            tokenListIncome.append([income, description, tokenDict["buy_type"], tokenDict["price"], tokenDict["end_time_timestamp"]])
+                # pull token details
+                tokenInfo = requests.get(call(NebulaPlanetTokenCx, "tokenURI", {"_tokenId": tokenDict["tokenId"]})).json()
+                
+                # initialise token info
+                token = pn_token.Planet(tokenInfo)
+                
+                # build description line for each token
+                description = token.get_description(tokenDict["price"])
+                
+                # credit range
+                income = token.get_income_range("Credits")
+                tokenListIncome.append([income, description, tokenDict["buy_type"], tokenDict["price"], tokenDict["end_time_timestamp"]])
 
-            # industry range
-            income = token.get_income_range("Industry")
-            tokenListIncome.append([income, description, tokenDict["buy_type"], tokenDict["price"], tokenDict["end_time_timestamp"]])
+                # industry range
+                income = token.get_income_range("Industry")
+                tokenListIncome.append([income, description, tokenDict["buy_type"], tokenDict["price"], tokenDict["end_time_timestamp"]])
 
-            # research range
-            income = token.get_income_range("Research")
-            tokenListIncome.append([income, description, tokenDict["buy_type"], tokenDict["price"], tokenDict["end_time_timestamp"]])
+                # research range
+                income = token.get_income_range("Research")
+                tokenListIncome.append([income, description, tokenDict["buy_type"], tokenDict["price"], tokenDict["end_time_timestamp"]])
 
-            # upgrade slots range
-            slots = token.get_slots_range()
-            tokenListSlots.append([slots, description, tokenDict["buy_type"], tokenDict["price"], tokenDict["end_time_timestamp"]])
+                # upgrade slots range
+                slots = token.get_slots_range()
+                tokenListSlots.append([slots, description, tokenDict["buy_type"], tokenDict["price"], tokenDict["end_time_timestamp"]])
 
-            # collectibles
-            if token.isArtwork > 0:
-                tokenListCollectibles.append(["Artwork", description, tokenDict["buy_type"], tokenDict["price"], tokenDict["end_time_timestamp"]])
-            if token.isMusic > 0:
-                tokenListCollectibles.append(["Music", description, tokenDict["buy_type"], tokenDict["price"], tokenDict["end_time_timestamp"]])
-            if token.isLore > 0:
-                tokenListCollectibles.append(["Lore", description, tokenDict["buy_type"], tokenDict["price"], tokenDict["end_time_timestamp"]])
+                # collectibles
+                if token.isArtwork > 0:
+                    tokenListCollectibles.append(["Artwork", description, tokenDict["buy_type"], tokenDict["price"], tokenDict["end_time_timestamp"]])
+                if token.isMusic > 0:
+                    tokenListCollectibles.append(["Music", description, tokenDict["buy_type"], tokenDict["price"], tokenDict["end_time_timestamp"]])
+                if token.isLore > 0:
+                    tokenListCollectibles.append(["Lore", description, tokenDict["buy_type"], tokenDict["price"], tokenDict["end_time_timestamp"]])
 
-            # loop to check special resources
-            for special in token.specials:
-                tokenListSpecials.append([special, description, tokenDict["buy_type"], tokenDict["price"], tokenDict["end_time_timestamp"]])
+                # loop to check special resources
+                for special in token.specials:
+                    tokenListSpecials.append([special, description, tokenDict["buy_type"], tokenDict["price"], tokenDict["end_time_timestamp"]])
+            except:
+                print("Error: {}. {}, line: {}".format(sys.exc_info()[0], sys.exc_info()[1], sys.exc_info()[2].tb_lineno))
+                continue
 
         # convert list to dataframe
         df_income = pd.DataFrame(tokenListIncome).drop_duplicates()
@@ -196,5 +235,5 @@ while True:
         print("Error: {}. {}, line: {}".format(sys.exc_info()[0], sys.exc_info()[1], sys.exc_info()[2].tb_lineno))
         continue
     
-    # wait for an hour before starting again
-    sleep(3600)
+    # wait for an 45 minutes before starting again
+    sleep(2700)
