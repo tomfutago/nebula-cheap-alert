@@ -34,10 +34,12 @@ class Planet(PNToken):
         # slots
         self.slotCount = len(tokenInfo["upgrades"])
 
-    def get_description(self, price) -> str:
+    def get_description(self, price, duration) -> str:
         description = "[**" + self.name.upper() + "**](" + self.external_link + ")"
-        description += "  " + self.generation.upper() + "/" + self.rarity.upper()
+        description += "  " + self.generation.lower() + "/" + self.rarity.lower()
         description += "  __" + str(price) + "__"
+        if duration != "":
+            description += "  - " + duration
         return description
     
     def get_income_range(self, income_label: str) -> str:
@@ -73,6 +75,11 @@ class Planet(PNToken):
         elif self.slotCount > 9:
             slot_range = "range5" + "10+ slots"
         return slot_range
+    
+    def get_rarity(self) -> str:
+        rarityList = ["common", "uncommon", "rare", "legendary", "mythic"]
+        index = [i for i, s in enumerate(rarityList) if self.rarity in s]
+        return "range" + str(index[0]+1) + self.rarity.title()
 
 class Spaceship(PNToken):
     def __init__(self, tokenInfo: json) -> None:
@@ -86,10 +93,12 @@ class Spaceship(PNToken):
         self.movement = str(tokenInfo["movement"])
         self.fuel = str(tokenInfo["fuel"])
 
-    def get_description(self, price) -> str:
+    def get_description(self, price, duration) -> str:
         description = "[**" + self.name.upper() + "**](" + self.external_link + ")"
-        description += "  " + self.generation.upper()
+        description += "  " + self.generation.lower()
         description += "  __" + str(price) + "__"
+        if duration != "":
+            description += "  - " + duration
         return description
     
     def get_ship_type(self) -> str:

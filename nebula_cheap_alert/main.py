@@ -2,11 +2,11 @@ import os
 import re
 import sys
 import json
-import datetime
 import requests
 import pandas as pd
 from time import sleep
 from dotenv import load_dotenv
+from datetime import datetime
 from pandas.core.frame import DataFrame
 from iconsdk.icon_service import IconService
 from iconsdk.providers.http_provider import HTTPProvider
@@ -23,6 +23,7 @@ if not is_heroku:
 discord_webhook_income = os.getenv("DISCORD_WEBHOOK_INCOME")
 discord_webhook_slots = os.getenv("DISCORD_WEBHOOK_SLOTS")
 discord_webhook_collectibles = os.getenv("DISCORD_WEBHOOK_COLLECTIBLES")
+discord_webhook_rarity = os.getenv("DISCORD_WEBHOOK_RARITY")
 discord_webhook_specials = os.getenv("DISCORD_WEBHOOK_SPECIALS")
 discord_webhook_ship_type = os.getenv("DISCORD_WEBHOOK_SHIP_TYPE")
 
@@ -50,24 +51,34 @@ def get_marketplace_info(contract: str, indexId: int) -> dict:
         # get set_price/auction listings
         if set_price != -1:
             buy_type = "set price"
+            status = "active"
             price = set_price / 10 ** 18
-            end_time_timestamp = ""
+            duration = ""
         else:
             buy_type = "auction"
             auction_info = call(contract, "get_auction_info", {"_token_id": tokenId})
             
             if "Token is not on auction" not in auction_info:
+                status = str(auction_info["status"]).lower()
                 price = int(auction_info["current_bid"], 16) / 10 ** 18
                 if price == 0:
                     price = int(auction_info["starting_price"], 16) / 10 ** 18
-                end_time_timestamp = str(int(auction_info["end_time"], 16) / 1000000) + "hrs"
-                #end_time = datetime.datetime.fromtimestamp(end_time_timestamp).strftime('%Y-%m-%d %H:%M:%S')
+                end_time_timestamp = int(auction_info["end_time"], 16) / 1000000
+                end_time = datetime.fromtimestamp(end_time_timestamp) #.strftime('%Y-%m-%d %H:%M:%S')
+                now_time = datetime.now()
+                
+                diff = end_time - now_time
+                hours = divmod(diff.total_seconds(), 3600)
+                minutes = divmod(hours[1], 60)
+                #seconds = divmod(minutes[1], 1)
+                duration = "%dh %dm left" % (hours[0], minutes[0])
 
         return {
+            "status": status,
             "tokenId": tokenId,
             "buy_type": buy_type,
             "price": price,
-            "end_time_timestamp": end_time_timestamp
+            "duration": duration
         }
 
     except:
@@ -125,6 +136,7 @@ while True:
     tokenListIncome = []
     tokenListSlots = []
     tokenListCollectibles = []
+    tokenListRarity = []
     tokenListSpecials = []
 
     try:
@@ -137,6 +149,10 @@ while True:
             try:
                 tokenDict = get_marketplace_info(NebulaSpaceshipTokenCx, indexId)
 
+                # if token not active (unsold) - skip and move on
+                if tokenDict["status"] != "active":
+                    continue
+
                 # pull token details
                 tokenInfo = requests.get(call(NebulaSpaceshipTokenCx, "tokenURI", {"_tokenId": tokenDict["tokenId"]})).json()
                 
@@ -145,16 +161,16 @@ while True:
                 
                 # build description line for each token
                 ship_type = token.get_ship_type()
-                description = token.get_description(tokenDict["price"])
+                description = token.get_description(tokenDict["price"], tokenDict["duration"])
                 
                 # ship type
-                tokenListShipType.append([ship_type, description, tokenDict["buy_type"], tokenDict["price"], tokenDict["end_time_timestamp"]])
+                tokenListShipType.append([ship_type, description, tokenDict["buy_type"], tokenDict["price"]])
             except:
                 print("Error: {}. {}, line: {}".format(sys.exc_info()[0], sys.exc_info()[1], sys.exc_info()[2].tb_lineno))
                 continue
 
         df_ship_type = pd.DataFrame(tokenListShipType).drop_duplicates()
-        df_ship_type.columns = ["type", "description", "buy_type", "price", "end_time"]
+        df_ship_type.columns = ["type", "description", "buy_type", "price"]
 
         # loop through each given key column currently available on the marketplace
         token_drill_info_loop(df=df_ship_type, key_column="type", discord_webhook=discord_webhook_ship_type)
@@ -168,6 +184,10 @@ while True:
             try:
                 tokenDict = get_marketplace_info(NebulaPlanetTokenCx, indexId)
 
+                # if token not active (unsold) - skip and move on
+                if tokenDict["status"] != "active":
+                    continue
+
                 # pull token details
                 tokenInfo = requests.get(call(NebulaPlanetTokenCx, "tokenURI", {"_tokenId": tokenDict["tokenId"]})).json()
                 
@@ -175,51 +195,58 @@ while True:
                 token = pn_token.Planet(tokenInfo)
                 
                 # build description line for each token
-                description = token.get_description(tokenDict["price"])
+                description = token.get_description(tokenDict["price"], tokenDict["duration"])
                 
                 # credit range
                 income = token.get_income_range("Credits")
-                tokenListIncome.append([income, description, tokenDict["buy_type"], tokenDict["price"], tokenDict["end_time_timestamp"]])
+                tokenListIncome.append([income, description, tokenDict["buy_type"], tokenDict["price"]])
 
                 # industry range
                 income = token.get_income_range("Industry")
-                tokenListIncome.append([income, description, tokenDict["buy_type"], tokenDict["price"], tokenDict["end_time_timestamp"]])
+                tokenListIncome.append([income, description, tokenDict["buy_type"], tokenDict["price"]])
 
                 # research range
                 income = token.get_income_range("Research")
-                tokenListIncome.append([income, description, tokenDict["buy_type"], tokenDict["price"], tokenDict["end_time_timestamp"]])
+                tokenListIncome.append([income, description, tokenDict["buy_type"], tokenDict["price"]])
 
                 # upgrade slots range
                 slots = token.get_slots_range()
-                tokenListSlots.append([slots, description, tokenDict["buy_type"], tokenDict["price"], tokenDict["end_time_timestamp"]])
+                tokenListSlots.append([slots, description, tokenDict["buy_type"], tokenDict["price"]])
 
                 # collectibles
                 if token.isArtwork > 0:
-                    tokenListCollectibles.append(["Artwork", description, tokenDict["buy_type"], tokenDict["price"], tokenDict["end_time_timestamp"]])
+                    tokenListCollectibles.append(["Artwork", description, tokenDict["buy_type"], tokenDict["price"]])
                 if token.isMusic > 0:
-                    tokenListCollectibles.append(["Music", description, tokenDict["buy_type"], tokenDict["price"], tokenDict["end_time_timestamp"]])
+                    tokenListCollectibles.append(["Music", description, tokenDict["buy_type"], tokenDict["price"]])
                 if token.isLore > 0:
-                    tokenListCollectibles.append(["Lore", description, tokenDict["buy_type"], tokenDict["price"], tokenDict["end_time_timestamp"]])
+                    tokenListCollectibles.append(["Lore", description, tokenDict["buy_type"], tokenDict["price"]])
 
+                # rarity
+                rarity = token.get_rarity()
+                tokenListRarity.append([rarity, description, tokenDict["buy_type"], tokenDict["price"]])
+                
                 # loop to check special resources
                 for special in token.specials:
-                    tokenListSpecials.append([special, description, tokenDict["buy_type"], tokenDict["price"], tokenDict["end_time_timestamp"]])
+                    tokenListSpecials.append([special, description, tokenDict["buy_type"], tokenDict["price"]])
             except:
                 print("Error: {}. {}, line: {}".format(sys.exc_info()[0], sys.exc_info()[1], sys.exc_info()[2].tb_lineno))
                 continue
 
         # convert list to dataframe
         df_income = pd.DataFrame(tokenListIncome).drop_duplicates()
-        df_income.columns = ["income", "description", "buy_type", "price", "end_time"]
+        df_income.columns = ["income", "description", "buy_type", "price"]
 
         df_slots = pd.DataFrame(tokenListSlots).drop_duplicates()
-        df_slots.columns = ["slots", "description", "buy_type", "price", "end_time"]
+        df_slots.columns = ["slots", "description", "buy_type", "price"]
 
         df_collectibles = pd.DataFrame(tokenListCollectibles).drop_duplicates()
-        df_collectibles.columns = ["collectible", "description", "buy_type", "price", "end_time"]
+        df_collectibles.columns = ["collectible", "description", "buy_type", "price"]
+
+        df_rarity = pd.DataFrame(tokenListRarity).drop_duplicates()
+        df_rarity.columns = ["rarity", "description", "buy_type", "price"]
 
         df_specials = pd.DataFrame(tokenListSpecials).drop_duplicates()
-        df_specials.columns = ["special", "description", "buy_type", "price", "end_time"]
+        df_specials.columns = ["special", "description", "buy_type", "price"]
 
         # for debugging to run pull-push separately
         #df.to_csv("planets.csv", header=True, index=False)
@@ -229,6 +256,7 @@ while True:
         token_drill_info_loop(df=df_income, key_column="income", discord_webhook=discord_webhook_income)
         token_drill_info_loop(df=df_slots, key_column="slots", discord_webhook=discord_webhook_slots)
         token_drill_info_loop(df=df_collectibles, key_column="collectible", discord_webhook=discord_webhook_collectibles)
+        token_drill_info_loop(df=df_rarity, key_column="rarity", discord_webhook=discord_webhook_rarity)
         token_drill_info_loop(df=df_specials, key_column="special", discord_webhook=discord_webhook_specials)
 
     except:
