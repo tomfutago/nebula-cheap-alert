@@ -34,9 +34,11 @@ class Planet(PNToken):
         # slots
         self.slotCount = len(tokenInfo["upgrades"])
 
-    def get_description(self, price, duration) -> str:
+    def get_description(self, price, duration, special: str="") -> str:
         description = "[**" + self.name.upper() + "**](" + self.external_link + ")"
         description += "  " + self.generation.lower() + "/" + self.rarity.lower()
+        if special != "":
+            description += "/" + special
         description += "  __" + str(price) + "__"
         if duration != "":
             description += "  - " + duration
