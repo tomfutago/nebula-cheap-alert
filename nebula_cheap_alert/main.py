@@ -27,6 +27,7 @@ discord_webhook_rarity = os.getenv("DISCORD_WEBHOOK_RARITY")
 discord_webhook_specials = os.getenv("DISCORD_WEBHOOK_SPECIALS")
 discord_webhook_bargains = os.getenv("DISCORD_WEBHOOK_BARGAINS")
 discord_webhook_ship_type = os.getenv("DISCORD_WEBHOOK_SHIP_TYPE")
+discord_webhook_log = os.getenv("DISCORD_LOG_WEBHOOK")
 
 # Project Nebula contracts
 NebulaPlanetTokenCx = "cx57d7acf8b5114b787ecdd99ca460c2272e4d9135"
@@ -42,98 +43,100 @@ def call(to, method, params):
     return result
 
 def get_marketplace_info(contract: str, indexId: int) -> dict:
-    try:
-        # for given indexId - retrieve corresponding tokenId
-        tokenId = int(call(contract, "get_listed_token_by_index", {"_index": indexId}), 16)
+    # for given indexId - retrieve corresponding tokenId
+    tokenId = int(call(contract, "get_listed_token_by_index", {"_index": indexId}), 16)
 
-        # get token price
-        set_price = int(call(contract, "get_token_price", {"_tokenId": tokenId}), 16)
+    # get token price
+    set_price = int(call(contract, "get_token_price", {"_tokenId": tokenId}), 16)
+    
+    # get set_price/auction listings
+    if set_price != -1:
+        buy_type = "set price"
+        status = "active"
+        price = set_price / 10 ** 18
+        duration = ""
+    else:
+        buy_type = "auction"
+        auction_info = call(contract, "get_auction_info", {"_token_id": tokenId})
         
-        # get set_price/auction listings
-        if set_price != -1:
-            buy_type = "set price"
-            status = "active"
-            price = set_price / 10 ** 18
-            duration = ""
-        else:
-            buy_type = "auction"
-            auction_info = call(contract, "get_auction_info", {"_token_id": tokenId})
+        if "Token is not on auction" not in auction_info:
+            status = str(auction_info["status"]).lower()
+            price = int(auction_info["current_bid"], 16) / 10 ** 18
+            if price == 0:
+                price = int(auction_info["starting_price"], 16) / 10 ** 18
+            end_time_timestamp = int(auction_info["end_time"], 16) / 1000000
+            end_time = datetime.fromtimestamp(end_time_timestamp) #.strftime('%Y-%m-%d %H:%M:%S')
+            now_time = datetime.now()
             
-            if "Token is not on auction" not in auction_info:
-                status = str(auction_info["status"]).lower()
-                price = int(auction_info["current_bid"], 16) / 10 ** 18
-                if price == 0:
-                    price = int(auction_info["starting_price"], 16) / 10 ** 18
-                end_time_timestamp = int(auction_info["end_time"], 16) / 1000000
-                end_time = datetime.fromtimestamp(end_time_timestamp) #.strftime('%Y-%m-%d %H:%M:%S')
-                now_time = datetime.now()
-                
-                diff = end_time - now_time
-                hours = divmod(diff.total_seconds(), 3600)
-                minutes = divmod(hours[1], 60)
-                #seconds = divmod(minutes[1], 1)
-                duration = "%dh %dm left" % (hours[0], minutes[0])
+            diff = end_time - now_time
+            hours = divmod(diff.total_seconds(), 3600)
+            minutes = divmod(hours[1], 60)
+            #seconds = divmod(minutes[1], 1)
+            duration = "%dh %dm left" % (hours[0], minutes[0])
 
-        return {
-            "status": status,
-            "tokenId": tokenId,
-            "buy_type": buy_type,
-            "price": price,
-            "duration": duration
-        }
-
-    except:
-        raise("Error: {}. {}, line: {}".format(sys.exc_info()[0], sys.exc_info()[1], sys.exc_info()[2].tb_lineno))
+    return {
+        "status": status,
+        "tokenId": tokenId,
+        "buy_type": buy_type,
+        "price": price,
+        "duration": duration
+    }
 
 def token_drill_info_loop(df: DataFrame, key_column: str, discord_webhook: str, isAll: bool=False) -> None:
-    try:
-        for key in sorted(df[key_column].unique()):
-            # list of buy types with corresponding colors
-            buy_types = [
-                ["auction", "F4D03F"],  #yellow
-                ["set price", "FDFEFE"] #white
-            ]
+    for key in sorted(df[key_column].unique()):
+        # list of buy types with corresponding colors
+        buy_types = [
+            ["auction", "F4D03F"],  #yellow
+            ["set price", "FDFEFE"] #white
+        ]
 
-            for buy_type, color in buy_types:
-                # filter to given value in key column and buy type..
-                df_filtered = df.query(key_column + " == '" + key + "' and buy_type == '" + buy_type + "'")
-                # .. and then find top 3 cheapest options
-                if isAll == False:
-                    df_filtered = df_filtered.sort_values(by=["price"], ascending=True).head(3)
-                # .. or show all of them
-                else:
-                    df_filtered = df_filtered.sort_values(by=[key_column, "price"], ascending=True)
-                
-                # convert dataframe to string and justify it to the left
-                info_list = df_filtered.to_string(
-                    columns=["description"],
-                    formatters={"description":"{{:<{}s}}".format(df_filtered["description"].str.len().max()).format},
-                    index=False,
-                    header=False
-                ).split("\n")
+        for buy_type, color in buy_types:
+            # filter to given value in key column and buy type..
+            df_filtered = df.query(key_column + " == '" + key + "' and buy_type == '" + buy_type + "'")
+            # .. and then find top 3 cheapest options
+            if isAll == False:
+                df_filtered = df_filtered.sort_values(by=["price"], ascending=True).head(3)
+            # .. or show all of them
+            else:
+                df_filtered = df_filtered.sort_values(by=[key_column, "price"], ascending=True)
+            
+            # convert dataframe to string and justify it to the left
+            info_list = df_filtered.to_string(
+                columns=["description"],
+                formatters={"description":"{{:<{}s}}".format(df_filtered["description"].str.len().max()).format},
+                index=False,
+                header=False
+            ).split("\n")
 
-                info = ""
-                for l in info_list:
-                    info += "\n" + str(l).strip() + " "
+            info = ""
+            for l in info_list:
+                info += "\n" + str(l).strip() + " "
 
-                # skip if there's no data
-                if "Empty DataFrame" in info:
-                    continue
+            # skip if there's no data
+            if "Empty DataFrame" in info:
+                continue
 
-                # generate discord alert
-                if len(info) > 0:
-                    # key column mihgt contain either 'range[1-5]' string to enforce required sorting above
-                    # this additional string needs removing from final output
-                    dtitle = re.sub("range[1-9]", "", key) + " - *" + buy_type + "*"
-                    webhook = DiscordWebhook(url=discord_webhook)
-                    embed = DiscordEmbed(title=dtitle, description=info, color=color)
-                    webhook.add_embed(embed)
-                    response = webhook.execute()
-                
-                # wait before sending next one to avoid blocking by discord / over-flooding users with too many alerts all at once
-                sleep(20)
-    except:
-        raise("Error: {}. {}, line: {}".format(sys.exc_info()[0], sys.exc_info()[1], sys.exc_info()[2].tb_lineno))
+            # generate discord alert
+            if len(info) > 0:
+                # key column mihgt contain either 'range[1-5]' string to enforce required sorting above
+                # this additional string needs removing from final output
+                dtitle = re.sub("range[1-9]", "", key) + " - *" + buy_type + "*"
+                webhook = DiscordWebhook(url=discord_webhook)
+                embed = DiscordEmbed(title=dtitle, description=info, color=color)
+                webhook.add_embed(embed)
+                response = webhook.execute()
+            
+            # wait before sending next one to avoid blocking by discord / over-flooding users with too many alerts all at once
+            sleep(20)
+
+# function for sending error msg to discord webhook
+def send_log_to_webhook(error: str):
+    err_msg = "Project Nebula - Cheap Alert log"
+    err_msg += "\nERROR: " + error
+    err_msg += "\n"
+    webhook = DiscordWebhook(url=discord_webhook_log, rate_limit_retry=True, content=err_msg)
+    response = webhook.execute()
+    return response
 
 
 # main loop
@@ -183,7 +186,8 @@ while True:
                     or ("stormbird" in ship_model and int(price) <= 700):
                     tokenListBargains.append(["range1Ships", description, buy_type, price])
             except:
-                print("Error: {}. {}, line: {}".format(sys.exc_info()[0], sys.exc_info()[1], sys.exc_info()[2].tb_lineno))
+                err_msg = "{}. {}, line: {}".format(sys.exc_info()[0], sys.exc_info()[1], sys.exc_info()[2].tb_lineno)
+                response = send_log_to_webhook(err_msg)
                 continue
 
         df_ship_type = pd.DataFrame(tokenListShipType).drop_duplicates()
@@ -235,12 +239,17 @@ while True:
 
                 # collectibles
                 if token.isArtwork > 0:
-                    tokenListCollectibles.append(["Artwork", description, buy_type, price])
-                if token.isMusic > 0:
-                    tokenListCollectibles.append(["Music", description, buy_type, price])
-                if token.isLore > 0:
-                    tokenListCollectibles.append(["Lore", description, buy_type, price])
+                    description_with_artwork = token.get_description(price, duration, token.artwork)
+                    tokenListCollectibles.append(["Artwork", description_with_artwork, buy_type, price])
 
+                if token.isMusic > 0:
+                    description_with_music = token.get_description(price, duration, token.music)
+                    tokenListCollectibles.append(["Music", description_with_music, buy_type, price])
+                
+                if token.isLore > 0:
+                    description_with_lore = token.get_description(price, duration, token.lore)
+                    tokenListCollectibles.append(["Lore", description_with_lore, buy_type, price])
+                
                 # rarity
                 rarity = token.get_rarity()
                 tokenListRarity.append([rarity, description, buy_type, price])
@@ -258,10 +267,11 @@ while True:
                     
                     # special bargains
                     if int(tokenDict["price"]) <= 90:
-                        descriptionInclSpecial = token.get_description(price, duration, special)
-                        tokenListBargains.append(["range3Specials", descriptionInclSpecial, buy_type, price])
+                        description_with_special = token.get_description(price, duration, special)
+                        tokenListBargains.append(["range3Specials", description_with_special, buy_type, price])
             except:
-                print("Error: {}. {}, line: {}".format(sys.exc_info()[0], sys.exc_info()[1], sys.exc_info()[2].tb_lineno))
+                err_msg = "{}. {}, line: {}".format(sys.exc_info()[0], sys.exc_info()[1], sys.exc_info()[2].tb_lineno)
+                response = send_log_to_webhook(err_msg)
                 continue
 
         # convert list to dataframe
@@ -296,7 +306,8 @@ while True:
         token_drill_info_loop(df=df_bargains, key_column="bargain", discord_webhook=discord_webhook_bargains, isAll=True)
 
     except:
-        print("Error: {}. {}, line: {}".format(sys.exc_info()[0], sys.exc_info()[1], sys.exc_info()[2].tb_lineno))
+        err_msg = "{}. {}, line: {}".format(sys.exc_info()[0], sys.exc_info()[1], sys.exc_info()[2].tb_lineno)
+        response = send_log_to_webhook(err_msg)
         continue
     
     # wait for an 45 minutes before starting again

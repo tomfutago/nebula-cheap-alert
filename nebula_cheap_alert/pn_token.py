@@ -1,5 +1,16 @@
 import json
 
+def int_to_roman(number: int) -> str:
+    num_map = [(1000, 'M'), (900, 'CM'), (500, 'D'), (400, 'CD'), (100, 'C'), (90, 'XC'),
+               (50, 'L'), (40, 'XL'), (10, 'X'), (9, 'IX'), (5, 'V'), (4, 'IV'), (1, 'I')]
+    result = []
+    for (arabic, roman) in num_map:
+        (factor, number) = divmod(number, arabic)
+        result.append(roman * factor)
+        if number == 0:
+            break
+    return "".join(result)
+
 class PNToken:
     def __init__(self, tokenInfo: json) -> None:
         # get common attributes
@@ -27,18 +38,37 @@ class Planet(PNToken):
         self.specials = special_resources
 
         # any collectibles?
-        self.isArtwork = 1 if tokenInfo["collectables"]["artwork"] != None else 0
-        self.isMusic = 1 if tokenInfo["collectables"]["music"] != None else 0
-        self.isLore = 1 if tokenInfo["collectables"]["lore"] != None else 0
+        if tokenInfo["collectables"]["artwork"] != None:
+            self.isArtwork = 1
+            self.artwork = self.get_collectable(tokenInfo["collectables"]["artwork"])
+        else:
+            self.isArtwork = 0
+
+        if tokenInfo["collectables"]["music"] != None:
+            self.isMusic = 1
+            self.music = self.get_collectable(tokenInfo["collectables"]["music"])
+        else:
+            self.isMusic = 0
+
+        if tokenInfo["collectables"]["lore"] != None:
+            self.isLore = 1
+            self.lore = self.get_collectable(tokenInfo["collectables"]["lore"])
+        else:
+            self.isLore = 0
 
         # slots
         self.slotCount = len(tokenInfo["upgrades"])
 
-    def get_description(self, price, duration, special: str="") -> str:
+    def get_collectable(self, collectable: json) -> str:
+        item = "#" + str(collectable["copy_number"]) + " out of " + str(collectable["total_copies"]) + " copies: "
+        item += "'" + str(collectable["name"]) + "' (Part " + int_to_roman(collectable["item_number"]) + ")"
+        return item
+
+    def get_description(self, price, duration, addon: str="") -> str:
         description = "[**" + self.name.upper() + "**](" + self.external_link + ")"
         description += "  " + self.generation.lower() + "/" + self.rarity.lower()
-        if special != "":
-            description += "/" + special
+        if addon != "":
+            description += "/" + addon
         description += "  __" + str(price) + "__"
         if duration != "":
             description += "  - " + duration
