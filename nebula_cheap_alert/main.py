@@ -190,11 +190,12 @@ while True:
                 response = send_log_to_webhook(err_msg)
                 continue
 
-        df_ship_type = pd.DataFrame(tokenListShipType).drop_duplicates()
-        df_ship_type.columns = ["type", "description", "buy_type", "price"]
+        if tokenListShipType:
+            df_ship_type = pd.DataFrame(tokenListShipType).drop_duplicates()
+            df_ship_type.columns = ["type", "description", "buy_type", "price"]
 
-        # loop through each given key column currently available on the marketplace
-        token_drill_info_loop(df=df_ship_type, key_column="type", discord_webhook=discord_webhook_ship_type)
+            # loop through each given key column currently available on the marketplace
+            token_drill_info_loop(df=df_ship_type, key_column="type", discord_webhook=discord_webhook_ship_type)
         
         ###########################################################################
         # how many planets currently listed on the marketplace
@@ -274,36 +275,37 @@ while True:
                 response = send_log_to_webhook(err_msg)
                 continue
 
-        # convert list to dataframe
-        df_income = pd.DataFrame(tokenListIncome).drop_duplicates()
-        df_income.columns = ["income", "description", "buy_type", "price"]
+        # convert each list to a dataframe
+        # and loop through each given key column currently available on the marketplace
+        if tokenListIncome:
+            df_income = pd.DataFrame(tokenListIncome).drop_duplicates()
+            df_income.columns = ["income", "description", "buy_type", "price"]
+            token_drill_info_loop(df=df_income, key_column="income", discord_webhook=discord_webhook_income)
 
-        df_slots = pd.DataFrame(tokenListSlots).drop_duplicates()
-        df_slots.columns = ["slots", "description", "buy_type", "price"]
+        if tokenListSlots:
+            df_slots = pd.DataFrame(tokenListSlots).drop_duplicates()
+            df_slots.columns = ["slots", "description", "buy_type", "price"]
+            token_drill_info_loop(df=df_slots, key_column="slots", discord_webhook=discord_webhook_slots)
 
-        df_collectibles = pd.DataFrame(tokenListCollectibles).drop_duplicates()
-        df_collectibles.columns = ["collectible", "description", "buy_type", "price"]
+        if tokenListCollectibles:
+            df_collectibles = pd.DataFrame(tokenListCollectibles).drop_duplicates()
+            df_collectibles.columns = ["collectible", "description", "buy_type", "price"]
+            token_drill_info_loop(df=df_collectibles, key_column="collectible", discord_webhook=discord_webhook_collectibles)
 
-        df_rarity = pd.DataFrame(tokenListRarity).drop_duplicates()
-        df_rarity.columns = ["rarity", "description", "buy_type", "price"]
+        if tokenListRarity:
+            df_rarity = pd.DataFrame(tokenListRarity).drop_duplicates()
+            df_rarity.columns = ["rarity", "description", "buy_type", "price"]
+            token_drill_info_loop(df=df_rarity, key_column="rarity", discord_webhook=discord_webhook_rarity)
 
-        df_specials = pd.DataFrame(tokenListSpecials).drop_duplicates()
-        df_specials.columns = ["special", "description", "buy_type", "price"]
+        if tokenListSpecials:
+            df_specials = pd.DataFrame(tokenListSpecials).drop_duplicates()
+            df_specials.columns = ["special", "description", "buy_type", "price"]
+            token_drill_info_loop(df=df_specials, key_column="special", discord_webhook=discord_webhook_specials)
 
-        df_bargains = pd.DataFrame(tokenListBargains).drop_duplicates()
-        df_bargains.columns = ["bargain", "description", "buy_type", "price"]
-
-        # for debugging to run pull-push separately
-        #df.to_csv("planets.csv", header=True, index=False)
-        #df = pd.read_csv("planets.csv")
-
-        # loop through each given key column currently available on the marketplace
-        token_drill_info_loop(df=df_income, key_column="income", discord_webhook=discord_webhook_income)
-        token_drill_info_loop(df=df_slots, key_column="slots", discord_webhook=discord_webhook_slots)
-        token_drill_info_loop(df=df_collectibles, key_column="collectible", discord_webhook=discord_webhook_collectibles)
-        token_drill_info_loop(df=df_rarity, key_column="rarity", discord_webhook=discord_webhook_rarity)
-        token_drill_info_loop(df=df_specials, key_column="special", discord_webhook=discord_webhook_specials)
-        token_drill_info_loop(df=df_bargains, key_column="bargain", discord_webhook=discord_webhook_bargains, isAll=True)
+        if tokenListBargains:
+            df_bargains = pd.DataFrame(tokenListBargains).drop_duplicates()
+            df_bargains.columns = ["bargain", "description", "buy_type", "price"]
+            token_drill_info_loop(df=df_bargains, key_column="bargain", discord_webhook=discord_webhook_bargains, isAll=True)
 
     except:
         err_msg = "{}. {}, line: {}".format(sys.exc_info()[0], sys.exc_info()[1], sys.exc_info()[2].tb_lineno)
