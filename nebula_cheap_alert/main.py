@@ -130,8 +130,12 @@ def token_drill_info_loop(df: DataFrame, key_column: str, discord_webhook: str, 
             sleep(20)
 
 # function for sending error msg to discord webhook
-def send_log_to_webhook(error: str):
+def send_log_to_webhook(indexId: int, tokenType: str, tokenId: int, error: str):
     err_msg = "Project Nebula - Cheap Alert log"
+    if indexId > 0:
+        err_msg += "\nIndexId: " + str(indexId)
+    if tokenId > 0:
+        err_msg += "\nhttps://api.projectnebula.app/" + tokenType + "/" + str(tokenId)
     err_msg += "\nERROR: " + error
     err_msg += "\n"
     webhook = DiscordWebhook(url=discord_webhook_log, rate_limit_retry=True, content=err_msg)
@@ -164,7 +168,8 @@ while True:
                     continue
 
                 # pull token details
-                tokenInfo = requests.get(call(NebulaSpaceshipTokenCx, "tokenURI", {"_tokenId": tokenDict["tokenId"]})).json()
+                tokenId = tokenDict["tokenId"]
+                tokenInfo = requests.get(call(NebulaSpaceshipTokenCx, "tokenURI", {"_tokenId": tokenId})).json()
                 
                 # initialise token info
                 token = pn_token.Spaceship(tokenInfo)
@@ -187,7 +192,7 @@ while True:
                     tokenListBargains.append(["range1Ships", description, buy_type, price])
             except:
                 err_msg = "{}. {}, line: {}".format(sys.exc_info()[0], sys.exc_info()[1], sys.exc_info()[2].tb_lineno)
-                response = send_log_to_webhook(err_msg)
+                response = send_log_to_webhook(indexId, "ship", tokenId, err_msg)
                 continue
 
         if tokenListShipType:
@@ -211,7 +216,8 @@ while True:
                     continue
 
                 # pull token details
-                tokenInfo = requests.get(call(NebulaPlanetTokenCx, "tokenURI", {"_tokenId": tokenDict["tokenId"]})).json()
+                tokenId = tokenDict["tokenId"]
+                tokenInfo = requests.get(call(NebulaPlanetTokenCx, "tokenURI", {"_tokenId": tokenId})).json()
                 
                 # initialise token info
                 token = pn_token.Planet(tokenInfo)
@@ -272,7 +278,7 @@ while True:
                         tokenListBargains.append(["range3Specials", description_with_special, buy_type, price])
             except:
                 err_msg = "{}. {}, line: {}".format(sys.exc_info()[0], sys.exc_info()[1], sys.exc_info()[2].tb_lineno)
-                response = send_log_to_webhook(err_msg)
+                response = send_log_to_webhook(indexId, "planets", tokenId, err_msg)
                 continue
 
         # convert each list to a dataframe
@@ -309,7 +315,7 @@ while True:
 
     except:
         err_msg = "{}. {}, line: {}".format(sys.exc_info()[0], sys.exc_info()[1], sys.exc_info()[2].tb_lineno)
-        response = send_log_to_webhook(err_msg)
+        response = send_log_to_webhook(0, "", 0, err_msg)
         continue
     
     # wait for an 45 minutes before starting again
