@@ -3,10 +3,13 @@ import re
 import sys
 import json
 import requests
+import psycopg2
 import pandas as pd
 from time import sleep
 from dotenv import load_dotenv
+from datetime import date
 from datetime import datetime
+from datetime import timedelta
 from pandas.core.frame import DataFrame
 from iconsdk.icon_service import IconService
 from iconsdk.providers.http_provider import HTTPProvider
@@ -20,6 +23,7 @@ is_heroku = os.getenv("IS_HEROKU", None)
 if not is_heroku:
     load_dotenv()
 
+db_url = os.getenv("DATABASE_URL")
 discord_webhook_income = os.getenv("DISCORD_WEBHOOK_INCOME")
 discord_webhook_slots = os.getenv("DISCORD_WEBHOOK_SLOTS")
 discord_webhook_collectibles = os.getenv("DISCORD_WEBHOOK_COLLECTIBLES")
@@ -27,6 +31,7 @@ discord_webhook_rarity = os.getenv("DISCORD_WEBHOOK_RARITY")
 discord_webhook_specials = os.getenv("DISCORD_WEBHOOK_SPECIALS")
 discord_webhook_bargains = os.getenv("DISCORD_WEBHOOK_BARGAINS")
 discord_webhook_ship_type = os.getenv("DISCORD_WEBHOOK_SHIP_TYPE")
+discord_webhook_fresh_claims = os.getenv("DISCORD_WEBHOOK_FRESH_CLAIMS")
 discord_webhook_log = os.getenv("DISCORD_LOG_WEBHOOK")
 
 # Project Nebula contracts
@@ -41,6 +46,22 @@ def call(to, method, params):
     call = CallBuilder().to(to).method(method).params(params).build()
     result = icon_service.call(call)
     return result
+
+def get_ClaimedPlanets():
+    # open db connection and cursor to perform database operations
+    conn = psycopg2.connect(db_url, sslmode="require")
+    cur = conn.cursor()
+
+    # pull claimed planets from the last 10 days
+    cutOffDate = date.today() - timedelta(days=10)
+    cur.execute("select * from ClaimedPlanets where ClaimedDate >= %s;", (cutOffDate,))
+    df = cur.fetchall()
+
+    # close connection
+    cur.close()
+    conn.close()
+
+    return df
 
 def get_marketplace_info(contract: str, indexId: int) -> dict:
     # for given indexId - retrieve corresponding tokenId
@@ -152,6 +173,8 @@ while True:
     tokenListRarity = []
     tokenListSpecials = []
     tokenListBargains = []
+    tokenListFreshClaims = []
+    recentClaimedPlanets = get_ClaimedPlanets()
 
     try:
         ###########################################################################
@@ -276,6 +299,13 @@ while True:
                     if int(tokenDict["price"]) <= 90:
                         description_with_special = token.get_description(price, duration, special)
                         tokenListBargains.append(["range3Specials", description_with_special, buy_type, price])
+
+                # loop to check recently claimed planets
+                for id, planet, claimeddt in recentClaimedPlanets:
+                    if planet == token.name:
+                        claimed_dt_str = claimeddt.strftime("%Y-%m-%d %H:%M:%S")
+                        description_with_claimed_dt = token.get_description(price, duration, "claimed: " + claimed_dt_str)
+                        tokenListFreshClaims.append(["recent", description_with_claimed_dt, buy_type, price])
             except:
                 err_msg = "{}. {}, line: {}".format(sys.exc_info()[0], sys.exc_info()[1], sys.exc_info()[2].tb_lineno)
                 response = send_log_to_webhook(indexId, "planets", tokenId, err_msg)
@@ -312,6 +342,11 @@ while True:
             df_bargains = pd.DataFrame(tokenListBargains).drop_duplicates()
             df_bargains.columns = ["bargain", "description", "buy_type", "price"]
             token_drill_info_loop(df=df_bargains, key_column="bargain", discord_webhook=discord_webhook_bargains, isAll=True)
+
+        if tokenListFreshClaims:
+            df_fresh = pd.DataFrame(tokenListFreshClaims).drop_duplicates()
+            df_fresh.columns = ["recent", "description", "buy_type", "price"]
+            token_drill_info_loop(df=df_fresh, key_column="recent", discord_webhook=discord_webhook_fresh_claims, isAll=True)
 
     except:
         err_msg = "{}. {}, line: {}".format(sys.exc_info()[0], sys.exc_info()[1], sys.exc_info()[2].tb_lineno)
