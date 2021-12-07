@@ -1,4 +1,5 @@
-python-dotenv
-discord-webhook
-iconsdk
 pandas
+iconsdk
+python-dotenv
+psycopg2-binary
+discord-webhook
