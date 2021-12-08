@@ -55,13 +55,13 @@ def get_ClaimedPlanets():
     # pull claimed planets from the last 10 days
     cutOffDate = date.today() - timedelta(days=10)
     cur.execute("select * from ClaimedPlanets where ClaimedDate >= %s;", (cutOffDate,))
-    df = cur.fetchall()
+    ClaimedPlanets = cur.fetchall()
 
     # close connection
     cur.close()
     conn.close()
 
-    return df
+    return ClaimedPlanets
 
 def get_marketplace_info(contract: str, indexId: int) -> dict:
     # for given indexId - retrieve corresponding tokenId
@@ -174,7 +174,6 @@ while True:
     tokenListSpecials = []
     tokenListBargains = []
     tokenListFreshClaims = []
-    recentClaimedPlanets = get_ClaimedPlanets()
 
     try:
         ###########################################################################
@@ -226,6 +225,9 @@ while True:
             token_drill_info_loop(df=df_ship_type, key_column="type", discord_webhook=discord_webhook_ship_type)
         
         ###########################################################################
+        # pull recently claimed planets
+        recentClaimedPlanets = get_ClaimedPlanets()
+
         # how many planets currently listed on the marketplace
         total_listed_token_count = int(call(NebulaPlanetTokenCx, "total_listed_token_count", {}), 16)
 
