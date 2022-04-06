@@ -208,9 +208,12 @@ while True:
                 tokenListShipType.append([ship_type, description, buy_type, price])
 
                 # ship bargains
-                if ("roc" in ship_model and int(price) <= 150) \
+                if ("roc" in ship_model and int(price) <= 80) \
                     or ("gargoyle" in ship_model and int(price) <= 250) \
-                    or ("stormbird" in ship_model and int(price) <= 700):
+                    or ("stormbird" in ship_model and int(price) <= 550) \
+                    or ("zethus" in ship_model and int(price) <= 50) \
+                    or ("illex" in ship_model and int(price) <= 120) \
+                    or ("chrysalis" in ship_model and int(price) <= 550):
                     tokenListBargains.append(["range1Ships", description, buy_type, price])
             except:
                 err_msg = "{}. {}, line: {}".format(sys.exc_info()[0], sys.exc_info()[1], sys.exc_info()[2].tb_lineno)
@@ -287,8 +290,8 @@ while True:
                 tokenListRarity.append([rarity, description, buy_type, price])
 
                 # rarity bargains
-                if ("Common" in rarity and int(price) <= 15) \
-                    or ("Uncommon" in rarity and int(price) <= 40) \
+                if ("Common" in rarity and int(price) <= 25) \
+                    or ("Uncommon" in rarity and int(price) <= 45) \
                     or ("Rare" in rarity and int(price) <= 120) \
                     or ("Legendary" in rarity and int(price) <= 300):
                     tokenListBargains.append(["range2Rarity", description, buy_type, price])
