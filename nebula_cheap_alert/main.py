@@ -67,33 +67,37 @@ def get_marketplace_info(contract: str, indexId: int) -> dict:
     # for given indexId - retrieve corresponding tokenId
     tokenId = int(call(contract, "get_listed_token_by_index", {"_index": indexId}), 16)
 
-    # get token price
-    set_price = int(call(contract, "get_token_price", {"_tokenId": tokenId}), 16)
-    
-    # get set_price/auction listings
-    if set_price != -1:
-        buy_type = "set price"
-        status = "active"
-        price = set_price / 10 ** 18
-        duration = ""
+    # if tokenId=0 from call above -> no longer available on the marketplace
+    if tokenId == 0:
+        status = "inactive"
     else:
-        buy_type = "auction"
-        auction_info = call(contract, "get_auction_info", {"_token_id": tokenId})
+        # get token price
+        set_price = int(call(contract, "get_token_price", {"_tokenId": tokenId}), 16)
         
-        if "Token is not on auction" not in auction_info:
-            status = str(auction_info["status"]).lower()
-            price = int(auction_info["current_bid"], 16) / 10 ** 18
-            if price == 0:
-                price = int(auction_info["starting_price"], 16) / 10 ** 18
-            end_time_timestamp = int(auction_info["end_time"], 16) / 1000000
-            end_time = datetime.fromtimestamp(end_time_timestamp) #.strftime('%Y-%m-%d %H:%M:%S')
-            now_time = datetime.now()
+        # get set_price/auction listings
+        if set_price != -1:
+            buy_type = "set price"
+            status = "active"
+            price = set_price / 10 ** 18
+            duration = ""
+        else:
+            buy_type = "auction"
+            auction_info = call(contract, "get_auction_info", {"_token_id": tokenId})
             
-            diff = end_time - now_time
-            hours = divmod(diff.total_seconds(), 3600)
-            minutes = divmod(hours[1], 60)
-            #seconds = divmod(minutes[1], 1)
-            duration = "%dh %dm left" % (hours[0], minutes[0])
+            if "Token is not on auction" not in auction_info:
+                status = str(auction_info["status"]).lower()
+                price = int(auction_info["current_bid"], 16) / 10 ** 18
+                if price == 0:
+                    price = int(auction_info["starting_price"], 16) / 10 ** 18
+                end_time_timestamp = int(auction_info["end_time"], 16) / 1000000
+                end_time = datetime.fromtimestamp(end_time_timestamp) #.strftime('%Y-%m-%d %H:%M:%S')
+                now_time = datetime.now()
+                
+                diff = end_time - now_time
+                hours = divmod(diff.total_seconds(), 3600)
+                minutes = divmod(hours[1], 60)
+                #seconds = divmod(minutes[1], 1)
+                duration = "%dh %dm left" % (hours[0], minutes[0])
 
     return {
         "status": status,
