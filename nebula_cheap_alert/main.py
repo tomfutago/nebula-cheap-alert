@@ -233,7 +233,7 @@ while True:
         
         ###########################################################################
         # pull recently claimed planets
-        recentClaimedPlanets = get_ClaimedPlanets()
+        # recentClaimedPlanets = get_ClaimedPlanets()
 
         # how many planets currently listed on the marketplace
         total_listed_token_count = int(call(NebulaPlanetTokenCx, "total_listed_token_count", {}), 16)
@@ -310,11 +310,11 @@ while True:
                         tokenListBargains.append(["range3Specials", description_with_special, buy_type, price])
 
                 # loop to check recently claimed planets
-                for id, planet, claimeddt in recentClaimedPlanets:
-                    if planet == token.name:
-                        claimed_dt_str = claimeddt.strftime("%Y-%m-%d %H:%M:%S")
-                        description_with_claimed_dt = token.get_description(price, duration, "claimed: " + claimed_dt_str)
-                        tokenListFreshClaims.append(["recent", description_with_claimed_dt, buy_type, price])
+                #for id, planet, claimeddt in recentClaimedPlanets:
+                #    if planet == token.name:
+                #        claimed_dt_str = claimeddt.strftime("%Y-%m-%d %H:%M:%S")
+                #        description_with_claimed_dt = token.get_description(price, duration, "claimed: " + claimed_dt_str)
+                #        tokenListFreshClaims.append(["recent", description_with_claimed_dt, buy_type, price])
             except:
                 err_msg = "{}. {}, line: {}".format(sys.exc_info()[0], sys.exc_info()[1], sys.exc_info()[2].tb_lineno)
                 response = send_log_to_webhook(indexId, "planets", tokenId, err_msg)
